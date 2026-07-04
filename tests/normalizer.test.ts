@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
  * Preserves quotes inside escapes.
  */
 function stripEscapes(cmd: string): string {
-  return cmd.replace(/\(.)/g, '$1');
+  return cmd.replace(/\\(.)/g, '$1');
 }
 
 /**
@@ -42,7 +42,7 @@ function splitCompounds(cmd: string): string[] {
 // ===== ESCAPE STRIPPING =====
 describe('Normalizer — Escape Stripping', () => {
   it('strips backslash before space', () => {
-    expect(stripEscapes('rm\ -rf\ /')).toBe('rm -rf /');
+    expect(stripEscapes('rm\\ -rf\\ /')).toBe('rm -rf /');
   });
 
   it('strips backslash before character', () => {
@@ -101,7 +101,7 @@ describe('Normalizer — Whitespace Collapse', () => {
 // ===== FULL NORMALIZE =====
 describe('Normalizer — Full Normalize Pipeline', () => {
   it('strips escapes then collapses whitespace', () => {
-    expect(normalize('rm\ -rf\    /')).toBe('rm -rf /');
+    expect(normalize('rm\\ -rf\\    /')).toBe('rm -rf /');
   });
 
   it('handles typical clean command', () => {
@@ -109,7 +109,7 @@ describe('Normalizer — Full Normalize Pipeline', () => {
   });
 
   it('trims and normalizes complex command', () => {
-    expect(normalize('  echo\  "hello"   world  ')).toBe('echo "hello" world');
+    expect(normalize('  echo\\  "hello"   world  ')).toBe('echo "hello" world');
   });
 });
 
@@ -132,7 +132,7 @@ describe('Normalizer — Compound Splitting', () => {
   });
 
   it('normalizes each segment independently', () => {
-    expect(splitCompounds('  rm\   -rf   / ;   echo    hello  ')).toEqual(['rm -rf /', 'echo hello']);
+    expect(splitCompounds('  rm\\   -rf   / ;   echo    hello  ')).toEqual(['rm -rf /', 'echo hello']);
   });
 
   it('empty string returns empty array', () => {
@@ -172,7 +172,7 @@ describe('Normalizer — Edge Cases', () => {
   });
 
   it('normalize is idempotent', () => {
-    const input = '  rm\   -rf   /  ';
+    const input = '  rm\\   -rf   /  ';
     const once = normalize(input);
     const twice = normalize(once);
     expect(once).toBe(twice);

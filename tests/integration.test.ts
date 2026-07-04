@@ -1,9 +1,6 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-
-let goldenCommands: GoldenCommand[] = [];
-const chr = String.fromCharCode;
 
 interface GoldenCommand {
   command: string;
@@ -13,28 +10,29 @@ interface GoldenCommand {
   notes: string;
 }
 
-beforeAll(() => {
+/** Load golden commands synchronously at module level so it.each sees them at definition time. */
+const goldenCommands: GoldenCommand[] = (() => {
   const jsonlPath = path.resolve(__dirname, 'test_commands.jsonl');
   const raw = fs.readFileSync(jsonlPath, 'utf-8');
-  goldenCommands = raw
-    .split(chr(92) + chr(110))
+  return raw
+    .split('\n')
     .filter((line: string) => line.trim().length > 0)
     .map((line: string) => JSON.parse(line));
-});
+})();
 
 const REGEX_RULES: { pattern: RegExp; name: string }[] = [
   { pattern: /rm\s+-rf\s+\/{1,2}\s*(\*)?/i, name: 'rm-rf-root' },
   { pattern: /dd\s+if=/, name: 'dd-destructive' },
   { pattern: /mkfs\.\w+\s+\/dev\//i, name: 'mkfs-format' },
   { pattern: /:\s*\(\s*\)\s*\{/i, name: 'fork-bomb' },
-  { pattern: /(shutdown|halt|poweroff|reboot)\s*$/i, name: 'system-shutdown' },
+  { pattern: /\b(shutdown|halt|poweroff|reboot)\s*$/i, name: 'system-shutdown' },
   { pattern: /\/etc\/rc\.local/i, name: 'rc-local-persistence' },
-  { pattern: /mv.*\s+\/dev\/null/i, name: 'move-to-null' },
-  { pattern: /(curl|wget)\s+[^\|]*\|\s*(bash|sh)/i, name: 'curl-pipe-shell' },
+  { pattern: /\bmv\b.*\s+\/dev\/null/i, name: 'move-to-null' },
+  { pattern: /(curl|wget)\s+[^\|]*\|\s*(bash|sh)\b/i, name: 'curl-pipe-shell' },
   { pattern: /chmod\s+(?:-R\s+)?777\s+/i, name: 'chmod-777' },
   { pattern: /\|\s*(bash|sh)\s*$/i, name: 'pipe-to-shell' },
   { pattern: /find\s+\/\s+.*-perm\s+-4000/i, name: 'suid-recon' },
-  { pattern: /kill\s+-\d+\s+$$/i, name: 'kill-self' },
+  { pattern: /kill\s+-\d+\s+\$\$/i, name: 'kill-self' },
 ];
 
 function regexTier(cmd: string): { dangerous: boolean; rule: string | null } {
