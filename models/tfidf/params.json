@@ -1,0 +1,9 @@
+{
+  "ngram_range": [
+    1,
+    2
+  ],
+  "max_features": 5000,
+  "sublinear_tf": true,
+  "best_cv_f1": 0.99868507006783
+}
