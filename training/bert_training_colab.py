@@ -85,9 +85,10 @@ print("Data loaders created")
 
 # %%
 # Cell 4: Train BERT-tiny
-from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments
+from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EarlyStoppingCallback
 from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
+import torch
 
 # Compute class weights
 all_labels = np.array([item['label'] for item in train_data])
@@ -114,7 +115,6 @@ training_args = TrainingArguments(
     load_best_model_at_end=True,
     metric_for_best_model='eval_loss',
     greater_is_better=False,
-    patience=3,
     warmup_steps=100,
     logging_steps=50,
     seed=42
@@ -141,14 +141,29 @@ def compute_metrics(eval_pred):
         'confusion_matrix': cm.tolist()
     }
 
-# Initialize trainer
-trainer = Trainer(
+# Custom trainer to apply class weights
+class WeightedTrainer(Trainer):
+    def __init__(self, class_weights, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.class_weights = torch.tensor(class_weights, dtype=torch.float32)
+    
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+        loss_fct = torch.nn.CrossEntropyLoss(weight=self.class_weights)
+        loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+        return (loss, outputs) if return_outputs else loss
+
+# Initialize trainer with class weights
+trainer = WeightedTrainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
     compute_metrics=compute_metrics,
-    class_weights=class_weights_dict
+    class_weights=class_weights_dict,
+    callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
 )
 
 print("Starting BERT-tiny training...")
@@ -222,9 +237,10 @@ if recall < recall_threshold:
     print(f"Recall ({recall:.4f}) < {recall_threshold}, running DistilBERT fallback...")
     
     # Load DistilBERT
-    from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments
+    from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EarlyStoppingCallback
     from sklearn.utils.class_weight import compute_class_weight
     import numpy as np
+    import torch
     
     # Compute class weights for DistilBERT
     class_weights = compute_class_weight('balanced', classes=np.unique(all_labels), y=all_labels)
@@ -250,20 +266,34 @@ if recall < recall_threshold:
         load_best_model_at_end=True,
         metric_for_best_model='eval_loss',
         greater_is_better=False,
-        patience=3,
         warmup_steps=100,
         logging_steps=50,
         seed=42
     )
     
-    # Initialize trainer
-    trainer = Trainer(
+    # Custom trainer to apply class weights
+    class WeightedTrainer(Trainer):
+        def __init__(self, class_weights, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.class_weights = torch.tensor(class_weights, dtype=torch.float32)
+        
+        def compute_loss(self, model, inputs, return_outputs=False):
+            labels = inputs.pop("labels")
+            outputs = model(**inputs)
+            logits = outputs.logits
+            loss_fct = torch.nn.CrossEntropyLoss(weight=self.class_weights)
+            loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+            return (loss, outputs) if return_outputs else loss
+
+    # Initialize trainer with class weights
+    trainer = WeightedTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         compute_metrics=compute_metrics,
-        class_weights=class_weights_dict
+        class_weights=class_weights_dict,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
     )
     
     print("Starting DistilBERT training...")
