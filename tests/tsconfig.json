@@ -1,0 +1,13 @@
+{
+  "extends": "../typescript/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "../dist-test",
+    "types": ["node"],
+    "composite": true
+  },
+  "include": [
+    "**/*.ts",
+    "../typescript/src/**/*.ts"
+  ]
+}

@@ -1,0 +1,18 @@
+[project]
+name = "malice-classifier"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=5.0.0",
+    "matplotlib>=3.11.0",
+    "numpy>=2.5.0",
+    "onnx>=1.22.0",
+    "onnxruntime>=1.27.0",
+    "optimum>=2.2.0",
+    "pandas>=3.0.3",
+    "scikit-learn>=1.9.0",
+    "torch>=2.12.1",
+    "transformers>=5.13.0",
+]

