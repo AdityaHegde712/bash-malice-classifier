@@ -1,44 +1,42 @@
 # Codebase Overview
 
-> Classifies bash commands as malicious or benign using a three-tier voting system: regex pre-filter, TF-IDF fast-path, and BERT-tiny tiebreaker, with ONNX export for zero-dependency TypeScript inference.
+> Classifies bash commands as malicious or benign using a two-tier pipeline: regex pre-filter (Tier 0) for unambiguous destructive patterns, then TF-IDF + logistic regression (Tier 1) for probabilistic classification, with a conservative fallback that defaults to BLOCK on disagreement.
 
-**Last updated:** 2026-07-04  
-**Primary language:** Python 3.12 (uv-managed) + TypeScript (ES2022, NodeNext)  
+**Last updated:** 2026-07-05
+**Primary language:** Python 3.12 (uv-managed) + TypeScript (ES2022, NodeNext)
 **Architecture style:** Monorepo (training in Python, inference in TypeScript)
 
 ---
 
 ## Architecture overview
 
-The system is a three-tier voting classifier designed for real-time command safety evaluation. The architecture splits training (Python) from inference (TypeScript) via ONNX model exports, eliminating Python dependencies at runtime.
+The system is a two-tier command safety classifier designed for real-time inference in Node.js/Bun agentic pipelines. Training happens in Python; inference runs entirely in TypeScript with no Python runtime dependency.
 
 **Components:**
-- **Regex tier** — Pattern-matching pre-filter for unambiguous destructive commands. Runs unconditionally and returns immediately if matched.
-- **TF-IDF tier** — Deterministic fast-path using logistic regression on term frequency features. Sublinear TF scaling with IDF weighting.
-- **BERT tier** — Tiebreaker using a fine-tuned BERT-tiny model exported to ONNX. Only invoked when regex and TF-IDF tiers disagree.
-- **TypeScript inference layer** — Loads ONNX models via `@huggingface/transformers` for production deployment.
-- **Python training pipeline** — Generates synthetic data, trains models, exports to ONNX format.
+- **Normalizer** — Preprocesses commands: strips backslash escapes, collapses whitespace, splits compound commands (`;`, `&&`, `||`).
+- **Regex tier (Tier 0)** — 14 hardcoded patterns for unambiguous destructive/deceptive commands. Runs unconditionally; returns immediately on match.
+- **TF-IDF tier (Tier 1)** — Logistic regression on 5,000-feature vocabulary (unigrams + bigrams). Sublinear TF scaling with IDF weighting. Produces probability of being dangerous.
+- **Conservative fallback** — When regex and TF-IDF disagree, the system defaults to BLOCK. Security-critical design choice.
 
 **Request flow:**
-1. Command enters normalization (escape stripping, whitespace collapse, compound splitting).
-2. Regex tier runs unconditionally; if matched → block/approve immediately.
-3. TF-IDF tier runs in parallel; computes probability via logistic regression.
-4. If regex and TF-IDF agree → return consensus verdict.
-5. If they conflict → invoke BERT tier for tiebreaker decision.
+1. Command enters normalization (escape stripping → whitespace collapse).
+2. Regex tier runs; if matched → BLOCK with confidence 1.0.
+3. If no regex match → TF-IDF computes probability; threshold at 0.5.
+4. If both tiers agree → return consensus verdict.
+5. If they conflict → conservative fallback defaults to BLOCK.
 
-**State:** Model artifacts (ONNX, pickle) stored in `models/` subdirectories. No database, cache, or message queues.
+**State:** Model artifacts (JSON) stored in `models/tfidf/`. No database, cache, or message queues.
 
 ```mermaid
 graph LR
     CMD[Command Input] --> NORM[Normalizer]
-    NORM --> REGEX[Regex Tier]
-    NORM --> TFIDF[TF-IDF Tier]
-    REGEX -->|match| VERDICT[Verdict]
-    TFIDF --> CONSENSUS{Consensus?}
-    REGEX --> CONSENSUS
-    CONSENSUS -->|agree| VERDICT
-    CONSENSUS -->|conflict| BERT[BERT Tier]
-    BERT --> VERDICT
+    NORM --> REGEX[Regex Tier<br/>14 patterns]
+    REGEX -->|match| BLOCK[BLOCK]
+    REGEX -->|no match| TFIDF[TF-IDF + LogReg]
+    TFIDF --> AGREE{Tiers agree?}
+    REGEX -.->|safe| AGREE
+    AGREE -->|yes| VERDICT[Return verdict]
+    AGREE -->|no| FALLBACK[Conservative fallback<br/>→ BLOCK]
 ```
 
 ---
@@ -47,14 +45,12 @@ graph LR
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Runtime (training) | Python 3.12 | Uses `uv` for dependency management, not pip |
-| ML framework | scikit-learn, transformers, torch | TF-IDF + logistic regression, BERT fine-tuning |
-| Model export | ONNX via optimum | Zero Python dependency at inference time |
+| Runtime (training) | Python 3.12 | Managed by `uv`, not pip |
+| ML framework | scikit-learn | TF-IDF vectorizer + logistic regression |
 | Runtime (inference) | TypeScript (ES2022, NodeNext) | Strict TypeScript, ESM modules |
-| Inference engine | @huggingface/transformers | Loads ONNX models directly in Node.js |
-| Testing | vitest | TDD-first approach with locked spec tests |
-| Data processing | pandas, numpy | Dataset manipulation and feature engineering |
-| FastText | fasttext | Optional for subword tokenization experiments |
+| Testing | vitest 4.x | TDD-first, locked spec tests |
+| Data processing | pandas, numpy | Dataset manipulation |
+| Model artifacts | JSON | Vocabulary, IDF, coefficients, intercept |
 
 ---
 
@@ -62,124 +58,176 @@ graph LR
 
 | Entry | Command | Purpose |
 |---|---|---|
-| Python placeholder | `python main.py` | Prints hello message; no logic yet |
-| TypeScript placeholder | `npx tsx typescript/src/index.ts` | Empty export; Phase 2+ |
-| Test runner | `npx vitest run` | Executes all test files in `tests/` |
-| Training scripts | `uv run training/*.py` | Phase 3: dataset generation and model training |
+| TypeScript API | `import { classifyCommand } from '@project/malice-classifier'` | Primary entry point for consumers |
+| Test runner | `npx vitest run` (from repo root) | Runs all test suites in `tests/` |
+| Type check | `npx tsc --noEmit` (from `typescript/`) | Type-checks the inference module |
+| Training | `uv run training/run_local.py` | Local training pipeline runner |
+| Colab | Open `training/bert_training_colab.ipynb` | Cloud training (historical) |
 
 ---
 
 ## Key modules
 
-| Path | Responsibility |
-|---|---|
-| `tests/` | TDD specifications — locked regex patterns, TF-IDF math, BERT contracts. **Source of truth for classifier behavior.** |
-| `tests/test_commands.jsonl` | 35 golden commands with expected labels and tier assignments. Used by integration tests. |
-| `tests/regex.test.ts` | Locked regex patterns that implementation must match exactly. |
-| `tests/tfidf.test.ts` | Locked TF-IDF math: vocabulary, IDF values, logistic regression coefficients. |
-| `tests/bert.test.ts` | Mock BERT pipeline contract: loading, tokenization, output parsing. |
-| `tests/normalizer.test.ts` | Normalization pipeline spec: escape stripping, whitespace collapse, compound splitting. |
-| `tests/integration.test.ts` | End-to-end voting classifier logic with consensus/conflict resolution. |
-| `tests/evaluate.ts` | Evaluation script for accuracy metrics across categories and tiers. |
-| `tests/latency_benchmark.ts` | Performance benchmarking for classifier latency (p50/p95/p99). |
-| `tests/fnr_stress.ts` | False negative rate stress test with 0.5% threshold. |
-| `typescript/src/` | Future TypeScript implementation of classifier modules. |
-| `training/` | Future Python scripts for dataset generation and model training. |
-| `models/` | Future ONNX and pickle model artifacts. |
-| `data/` | Future raw, synthetic, processed, and split datasets. |
+### TypeScript inference layer (`typescript/src/`)
 
-> ⚠️ **Tests are locked specs** — The test files define exact behavior that implementations must replicate. Changing test patterns changes classifier requirements. Always coordinate test changes with implementation changes.
+| File | Purpose | Key exports |
+|---|---|---|
+| `types.ts` | All type definitions | `ClassificationResult`, `TFIDFResult`, `RegexRule`, `RegexMatchResult` |
+| `normalizer.ts` | Command preprocessing | `normalize()`, `splitCompounds()`, `stripEscapes()`, `collapseWhitespace()` |
+| `regex-rules.ts` | 14 hardcoded dangerous patterns | `REGEX_RULES`, `matchRule()` |
+| `tfidf.ts` | TF-IDF + logistic regression inference | `classifyTFIDF()`, `loadModel()`, `tokenize()`, `computeTF()`, `applyIDF()`, `sigmoid()`, `predictProbability()` |
+| `bert-classifier.ts` | BERT ONNX inference (preserved, not used in production) | `loadModel()`, `parseOutput()`, `validateTokenization()` |
+| `classifier.ts` | Two-tier orchestrator with fallback | `classifyCommand()`, `classifyCommandSync()` |
+| `index.ts` | Public API barrel export | Re-exports everything from the above modules |
+
+### Training pipeline (`training/`)
+
+| File | Purpose |
+|---|---|
+| `generate_dataset.py` | Creates synthetic training data |
+| `split_dataset.py` | Stratified 70/15/15 train/val/test split |
+| `phase4_tfidf.py` | Trains TF-IDF + logistic regression model |
+| `validate_dataset.py` | Validates dataset integrity |
+| `run_local.py` | Local pipeline orchestrator |
+| `package_colab.py` | Packages notebook outputs for local use |
+
+### Test suite (`tests/`)
+
+| File | Purpose | Status |
+|---|---|---|
+| `regex.test.ts` | Locked regex patterns — 14 rules, destructive + deceptive + safe cases | LOCKED |
+| `tfidf.test.ts` | Locked TF-IDF math — vocabulary, IDF, coefficients | LOCKED |
+| `normalizer.test.ts` | Normalization pipeline spec | LOCKED |
+| `integration.test.ts` | 35 golden commands end-to-end | LOCKED |
+| `bert.test.ts` | BERT mock contract (historical) | LOCKED |
+| `evaluate.ts` | Accuracy metrics across categories | Utility |
+| `latency_benchmark.ts` | p50/p95/p99 latency measurement | Utility |
+| `fnr_stress.ts` | False negative rate stress test (<0.5% threshold) | Utility |
+| `test_commands.jsonl` | 35 golden commands with expected labels and tier assignments | Reference |
+
+> 145 tests across 5 locked test suites. The test files define exact behavior that implementations must replicate.
 
 ---
 
 ## Data layer
 
-**Currently empty** — Phase 3 pending. Planned structure:
+**Dataset:** 56,576 commands (45.3% safe, 54.7% dangerous) stored as JSONL.
 
-- `data/raw/` — Raw datasets (JSONL format, e.g., UCI shell commands)
-- `data/synthetic/` — Generated training examples
-- `data/processed/` — Feature-engineered datasets
-- `data/splits/` — Train/validation/test splits
-- `data/reports/` — Evaluation reports and metrics
+**Splits** (`data/splits/`):
+- `train.jsonl` — 39,590 records (70% stratified)
+- `val.jsonl` — 8,483 records (15% stratified)
+- `test.jsonl` — 8,485 records (15% stratified)
+- `adversarial.jsonl` — Additional adversarial/obfuscated variants
 
-Data format: JSONL with fields like `command`, `label`, `category`, `source`.
+**Fields per record:**
+- `command` — The shell command text
+- `label` — 0 = safe/benign, 1 = dangerous/malicious
+- `severity` — null (benign) or low/medium/high/critical
+- `category` — filesystem, git, npm, pip, docker, sysadmin, deceptive, destructive, exfiltration, privesc, persistence, recon, adversarial
+- `source` — synthetic_benign, synthetic_dangerous, adversarial
+- `obfuscation_type` — none, base64, variable_substitution, comment_injection, heredoc, chaining_safe_prefix/suffix, wildcard_obfuscation, escape_injection, reverse_string, quoted_arguments, echoed_command, dry_run
+
+**Golden commands** (35 curated test cases) are excluded from all splits to prevent data leakage.
+
+---
+
+## Model artifacts
+
+TF-IDF model stored in `models/tfidf/` as JSON:
+
+| File | Content |
+|---|---|
+| `vocabulary.json` | Token → index mapping (5,000 features) |
+| `idf.json` | Inverse document frequency values |
+| `coef.json` | Logistic regression coefficients (nested array: `[[c0, c1, ...]]`) |
+| `intercept.json` | Logistic regression intercept (`[value]`) |
+| `params.json` | Model parameters (ngram_range, max_features, sublinear_tf) |
+| `evaluation.json` | Test set metrics |
+| `threshold.json` | Optimal classification threshold (0.5) |
+| `reference_predictions.jsonl` | Sample predictions for validation |
+
+**Performance:** 99.84% accuracy, 99.94% recall (dangerous), 99.76% precision (dangerous), F1 99.85%. Latency: <1ms (TF-IDF), <0.1ms (regex).
 
 ---
 
 ## Non-obvious patterns
 
-**TDD-first with locked specs**  
-Tests are written before implementation and define exact behavior. The regex patterns in `tests/regex.test.ts` are the source of truth — implementations must produce identical matches. The TF-IDF math in `tests/tfidf.test.ts` specifies exact vocabulary, IDF values, and coefficients. Never modify tests without understanding the classifier architecture.
+**Two-tier with conservative fallback, not voting**  
+The system does not "vote." Regex runs first and blocks unconditionally if matched. If no regex match, TF-IDF decides. If they disagree (regex safe + TF-IDF dangerous, or vice versa), the fallback defaults to BLOCK. This is a security-first design — false positives are acceptable; false negatives are not.
 
-**Three-tier voting with consensus/conflict resolution**  
-The classifier doesn't use a single model. Regex and TF-IDF run in parallel; if they agree, that's the verdict. Only when they conflict does BERT break the tie. This design optimizes for speed (most decisions made by fast tiers) while maintaining accuracy (BERT catches edge cases).
+**BERT-tiny was abandoned after training**  
+A BERT-tiny tier was explored as a tiebreaker but produced a degenerate model (representational collapse — all inputs predicted class 1). TF-IDF alone exceeds all targets. The `bert-classifier.ts` file is preserved for reference but is not wired into the classifier orchestrator.
 
-**Python trains, TypeScript runs**  
-Python is used only for training and ONNX export. TypeScript loads ONNX models via `@huggingface/transformers` for inference. This eliminates Python dependencies in production. The `models/` directory stores ONNX files that TypeScript consumes.
+**Regex patterns are intentionally conservative**  
+`rm -rf node_modules/` matches `rm-rf-root` at regex level. This is expected — regex is the most conservative tier. The TF-IDF tier can override this as safe when context indicates it's benign. Never "fix" regex to be less aggressive.
 
-**Regex patterns are conservative**  
-The regex tier flags `rm -rf node_modules/` as dangerous (matches `rm-rf-root`). This is intentional — regex is the most conservative tier. Higher tiers (TF-IDF, BERT) can override this as safe when context indicates it's benign.
+**Tests are locked specifications**  
+The 5 test suites in `tests/` define exact behavior. Changing `tests/regex.test.ts` changes regex requirements. Changing `tests/tfidf.test.ts` changes TF-IDF math. Implementations must produce identical matches. Always coordinate test changes with implementation.
 
-**Compound command splitting**  
-Commands like `ls -la; rm -rf /` are split on `;`, `&&`, `||` operators. Each segment is classified independently. The final verdict is dangerous if any segment is dangerous.
+**Compound splitting splits on all operators**  
+`&&` and `||` inside quoted strings are split. This is current behavior, not a bug. Each segment is classified independently.
 
 **Normalization is idempotent**  
-The normalization pipeline (escape stripping → whitespace collapse → trim) can be applied multiple times without changing the result. This is tested explicitly.
+Escape stripping → whitespace collapse → trim can be applied multiple times without changing the result.
+
+**Model loading is lazy**  
+`tfidf.ts` loads model artifacts from disk on first `classifyTFIDF()` call. No explicit initialization required. Module-level state holds the loaded model.
 
 ---
 
 ## Development workflow
 
 ```bash
-# 1. Python environment (uv)
+# 1. Python environment (training only)
 uv sync
 
-# 2. TypeScript environment
+# 2. TypeScript environment (inference)
 cd typescript && npm install
 
-# 3. Run all tests (TDD)
+# 3. Run all tests (from repo root)
 npx vitest run
 
 # 4. Run specific test suite
 npx vitest run tests/regex.test.ts
 npx vitest run tests/tfidf.test.ts
-npx vitest run tests/bert.test.ts
 
-# 5. Run evaluation metrics
+# 5. Type check
+cd typescript && npx tsc --noEmit
+
+# 6. Evaluation metrics
 npx tsx tests/evaluate.ts
 
-# 6. Run latency benchmark
+# 7. Latency benchmark
 npx tsx tests/latency_benchmark.ts 1000
 
-# 7. Run false negative stress test
+# 8. False negative stress test
 npx tsx tests/fnr_stress.ts
 
-# 8. Training (Phase 3)
-uv run training/generate_dataset.py
-uv run training/train_models.py
+# 9. Training pipeline
+uv run training/run_local.py
 ```
 
-**Linting:** Not configured yet.  
+**Linting:** Not configured.
 **Type checking:** `npx tsc --noEmit` in `typescript/` directory.
 
 ---
 
 ## Architecture decisions
 
-**ONNX for zero-dependency inference**  
-Models are exported from Python to ONNX format. TypeScript loads them via `@huggingface/transformers` without requiring Python, PyTorch, or scikit-learn at runtime. This simplifies deployment and reduces container size.
+**Two-tier, not three — BERT abandoned**  
+BERT-tiny was explored as a tiebreaker between regex and TF-IDF. Training produced a degenerate model with representational collapse (always predicts class 1). TF-IDF alone achieves 99.84% accuracy with <1ms latency, making the BERT tier unnecessary. The BERT classifier module is preserved but not used.
 
-**TF-IDF as fast-path**  
-TF-IDF with logistic regression provides deterministic, sub-millisecond classification for most commands. It's computationally cheap and doesn't require GPU. Used as the primary decision maker when regex doesn't match.
+**Conservative fallback on disagreement**  
+When regex (Tier 0) and TF-IDF (Tier 1) produce conflicting verdicts, the system defaults to BLOCK. Rationale: in a security-critical classifier, missing a dangerous command (false negative) is far worse than blocking a safe one (false positive).
 
-**BERT as tiebreaker only**  
-BERT-tiny is invoked only when regex and TF-IDF disagree. This minimizes inference latency for the majority of commands while maintaining accuracy for ambiguous cases.
+**Python trains, TypeScript runs**  
+Python is used only for training and model export. TypeScript loads JSON model artifacts directly — no ONNX, no Python runtime, no ML framework at inference time. This simplifies deployment and reduces attack surface.
 
-**Test-first development**  
-All classifier behavior is defined in test specifications before implementation. This ensures implementations match exact requirements and prevents drift.
+**Regex as unconditional pre-filter**  
+Regex patterns run before any ML model. If a command matches a known dangerous pattern, it's blocked immediately with confidence 1.0. No model inference needed. This provides deterministic, sub-0.1ms blocking for obvious threats.
 
-**Conservative regex tier**  
-Regex patterns are intentionally broad to catch obvious dangerous commands. False positives are acceptable at this tier because higher tiers can override.
+**TF-IDF as primary decision maker**  
+For commands that don't match regex patterns, TF-IDF with logistic regression provides deterministic, sub-millisecond classification. The model uses 5,000 features (unigrams + bigrams) with sublinear TF scaling and IDF weighting.
 
 ---
 
@@ -187,24 +235,23 @@ Regex patterns are intentionally broad to catch obvious dangerous commands. Fals
 
 | Term | Meaning in this codebase |
 |---|---|
-| **Tier** | One of the three classification layers (regex, TF-IDF, BERT) |
-| **Voting classifier** | System that combines multiple classifiers to produce a final verdict |
-| **Consensus** | When regex and TF-IDF tiers agree on a verdict |
-| **Conflict** | When regex and TF-IDF tiers disagree, triggering BERT tiebreaker |
+| **Tier 0** | Regex pattern-matching pre-filter |
+| **Tier 1** | TF-IDF + logistic regression classifier |
+| **Golden commands** | 35 curated test cases with expected labels, excluded from training data |
 | **Locked spec** | Test file that defines exact behavior implementations must match |
-| **Golden commands** | Curated set of 35 commands with expected labels for integration testing |
+| **Conservative fallback** | Default to BLOCK when regex and TF-IDF disagree |
 | **False negative rate (FNR)** | Percentage of dangerous commands incorrectly classified as safe |
 
 ---
 
 ## Before you change code
 
-- **Tests are source of truth** — Changing `tests/regex.test.ts` changes regex requirements. Changing `tests/tfidf.test.ts` changes TF-IDF math. Always coordinate with implementation.
-- **Regex patterns are conservative** — `rm -rf node_modules/` is expected to match `rm-rf-root`. This is by design.
-- **Compound splitting splits everywhere** — `&&` and `||` inside quoted strings are split. This is current behavior, not a bug.
-- **Normalization is idempotent** — Can be applied multiple times safely. Don't add non-idempotent normalization steps.
-- **BERT tier is mock only** — Current BERT tests use mocks. Real ONNX inference will have different latency characteristics.
-- **Data directories are empty** — Phase 3 pending. Don't assume data exists.
-- **No CI/CD configured** — Tests run locally only.
-- **Python uses uv** — Not pip. Use `uv add` for dependencies, `uv run` for scripts.
+- **Tests are source of truth** — Changing test patterns changes classifier requirements. Always coordinate.
+- **Regex is conservative by design** — `rm -rf node_modules/` matching `rm-rf-root` is expected. Don't "fix" it.
+- **BERT tier is dead code** — `bert-classifier.ts` is preserved but not wired in. Do not re-enable without addressing the degenerate model issue.
+- **Compound splitting splits everywhere** — `&&` and `||` inside quotes are split. Current behavior.
+- **Normalization is idempotent** — Safe to apply multiple times. Don't add non-idempotent steps.
 - **TypeScript uses ESM** — `"type": "module"` in package.json. Use `import` not `require`.
+- **Python uses uv** — Not pip. Use `uv add` for dependencies, `uv run` for scripts.
+- **No CI/CD configured** — Tests run locally only.
+- **Model loading is lazy** — No explicit init required. Module-level state in `tfidf.ts`.

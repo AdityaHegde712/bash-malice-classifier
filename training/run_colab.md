@@ -47,8 +47,11 @@
 ## Step 8: Place artifacts in local project
 1. Unzip the downloaded folder
 2. Move the contents to the local project root:
+   - `models/bert-tiny/checkpoints/best_final/` (or `models/distilbert/checkpoints/best_final/`)
    - `models/bert-tiny/onnx_quantized/` (or `models/distilbert/`)
    - Ensure the directory structure is preserved
+
+**Note:** The best model is saved to `best_final/` (not a symlink) to ensure portability across platforms
 
 ## Troubleshooting
 
@@ -74,12 +77,13 @@
 
 ## Expected Output
 After successful completion, you should see:
-1. `models/{model}/onnx_quantized/model.onnx` - Quantized ONNX model
-2. `models/{model}/onnx_quantized/tokenizer.json` - Tokenizer configuration
-3. `models/{model}/onnx_quantized/config.json` - Model configuration
-4. `models/{model}/onnx_quantized/verification.json` - ONNX-PyTorch comparison results
-5. `models/{model}/onnx_quantized/latency_benchmark.json` - Performance metrics
-6. `models/{model}/evaluation/evaluation.json` - Model evaluation results
+1. `models/{model}/checkpoints/best_final/` - Best model checkpoint (non-symlink)
+2. `models/{model}/onnx_quantized/model.onnx` - Quantized ONNX model
+3. `models/{model}/onnx_quantized/tokenizer.json` - Tokenizer configuration
+4. `models/{model}/onnx_quantized/config.json` - Model configuration
+5. `models/{model}/onnx_quantized/verification.json` - ONNX-PyTorch comparison results
+6. `models/{model}/onnx_quantized/latency_benchmark.json` - Performance metrics
+7. `models/{model}/evaluation/evaluation.json` - Model evaluation results
 
 ## Verification
 After downloading artifacts:

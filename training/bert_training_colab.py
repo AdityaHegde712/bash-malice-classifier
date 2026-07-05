@@ -9,9 +9,9 @@ zipfile.ZipFile('dataset.zip').extractall('splits/')
 print("Extracted files:", os.listdir('splits/'))
 
 # Create models directory structure
-os.makedirs('models/bert-tiny/checkpoints/best/', exist_ok=True)
+os.makedirs('models/bert-tiny/checkpoints/best_final/', exist_ok=True)
 os.makedirs('models/bert-tiny/evaluation/', exist_ok=True)
-os.makedirs('models/distilbert/checkpoints/best/', exist_ok=True)
+os.makedirs('models/distilbert/checkpoints/best_final/', exist_ok=True)
 os.makedirs('models/distilbert/evaluation/', exist_ok=True)
 print("Created directory structure")
 
@@ -148,7 +148,7 @@ class WeightedTrainer(Trainer):
         self.class_weights = torch.tensor(class_weights, dtype=torch.float32)
     
     def compute_loss(self, model, inputs, return_outputs=False):
-        labels = inputs.pop("labels")
+        labels = inputs["labels"]
         outputs = model(**inputs)
         logits = outputs.logits
         loss_fct = torch.nn.CrossEntropyLoss(weight=self.class_weights)
@@ -167,8 +167,26 @@ trainer = WeightedTrainer(
 )
 
 print("Starting BERT-tiny training...")
-trainer.train()
-print("BERT-tiny training completed")
+    trainer.train()
+    print("BERT-tiny training completed")
+    
+    # After training completes, save the best model explicitly (no symlinks)
+    import shutil
+    import os
+    
+    best_checkpoint = trainer.state.best_model_checkpoint
+    if best_checkpoint and os.path.exists(best_checkpoint):
+        print(f"Saving best model from {best_checkpoint}")
+        # Load the best model
+        best_model = AutoModelForSequenceClassification.from_pretrained(best_checkpoint)
+        # Save to a non-symlink location
+        best_model.save_pretrained('models/bert-tiny/checkpoints/best_final/')
+        tokenizer.save_pretrained('models/bert-tiny/checkpoints/best_final/')
+        print(f"Best model saved to models/bert-tiny/checkpoints/best_final/")
+    else:
+        print(f"Warning: best checkpoint not found at {best_checkpoint}, saving current model")
+        model.save_pretrained('models/bert-tiny/checkpoints/best_final/')
+        tokenizer.save_pretrained('models/bert-tiny/checkpoints/best_final/')
 
 # %%
 # Cell 5: Evaluate BERT-tiny
@@ -176,7 +194,7 @@ import json
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
 # Load best model
-model = AutoModelForSequenceClassification.from_pretrained('models/bert-tiny/checkpoints/best/')
+model = AutoModelForSequenceClassification.from_pretrained('models/bert-tiny/checkpoints/best_final/')
 
 # Evaluation
 model.eval()
@@ -255,7 +273,7 @@ if recall < recall_threshold:
     
     # Training arguments (same as BERT)
     training_args = TrainingArguments(
-        output_dir='models/distilbert/checkpoints/best/',
+        output_dir='models/distilbert/checkpoints/best_final/',
         num_train_epochs=10,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
@@ -278,7 +296,7 @@ if recall < recall_threshold:
             self.class_weights = torch.tensor(class_weights, dtype=torch.float32)
         
         def compute_loss(self, model, inputs, return_outputs=False):
-            labels = inputs.pop("labels")
+            labels = inputs["labels"]
             outputs = model(**inputs)
             logits = outputs.logits
             loss_fct = torch.nn.CrossEntropyLoss(weight=self.class_weights)
@@ -359,10 +377,10 @@ from transformers import AutoTokenizer
 # Determine which model to export
 if recall >= recall_threshold:
     model_name = 'bert-tiny'
-    checkpoint_path = 'models/bert-tiny/checkpoints/best/'
+    checkpoint_path = 'models/bert-tiny/checkpoints/best_final/'
 else:
     model_name = 'distilbert'
-    checkpoint_path = 'models/distilbert/checkpoints/best/'
+    checkpoint_path = 'models/distilbert/checkpoints/best_final/'
 
 print(f"Exporting {model_name} to ONNX...")
 
@@ -417,10 +435,10 @@ import numpy as np
 # Determine which model to verify
 if recall >= recall_threshold:
     model_name = 'bert-tiny'
-    checkpoint_path = 'models/bert-tiny/checkpoints/best/'
+    checkpoint_path = 'models/bert-tiny/checkpoints/best_final/'
 else:
     model_name = 'distilbert'
-    checkpoint_path = 'models/distilbert/checkpoints/best/'
+    checkpoint_path = 'models/distilbert/checkpoints/best_final/'
 
 # Load PyTorch model
 from transformers import AutoModelForSequenceClassification
@@ -505,10 +523,10 @@ import numpy as np
 # Determine which model to benchmark
 if recall >= recall_threshold:
     model_name = 'bert-tiny'
-    checkpoint_path = 'models/bert-tiny/checkpoints/best/'
+    checkpoint_path = 'models/bert-tiny/checkpoints/best_final/'
 else:
     model_name = 'distilbert'
-    checkpoint_path = 'models/distilbert/checkpoints/best/'
+    checkpoint_path = 'models/distilbert/checkpoints/best_final/'
 
 # Load ONNX model
 ort_session = ort.InferenceSession(f'models/{model_name}/onnx_quantized/model.onnx')
