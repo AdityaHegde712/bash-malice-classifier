@@ -436,7 +436,3 @@ The TF-IDF model is stored as JSON files in `models/tfidf/`:
 
 - **[MODEL_CARD.md](MODEL_CARD.md)** - Detailed model description and training data
 - **[PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)** - Comprehensive performance analysis
-
-## License
-
-ISC
