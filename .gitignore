@@ -12,9 +12,16 @@ dist/
 # Model / data artifacts
 *.onnx
 *.pkl
+models/bert-tiny/models.zip
+**/*/optimizer.pt
+**/*/rng_state.pth
+**/*/scheduler.pt
 
 # OS
 .DS_Store
+
+# Temp
+**/*/temp*
 
 # Agent files
 session
